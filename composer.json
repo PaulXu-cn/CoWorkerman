@@ -1,0 +1,28 @@
+{
+    "name": "paulxu-cn/co-workerman",
+    "description": "Coroutine Workerman.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Paul Xu",
+            "email": "dianzikdcdmain@163.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "CoWorkerman\\": "src"
+        }
+    },
+    "require": {
+        "php": ">=5.5",
+        "workerman/workerman": "4.0.5"
+    },
+    "repositories": {
+        "packagist": {
+            "type": "composer",
+            "url": "https://mirrors.aliyun.com/composer/"
+        }
+    },
+    "minimum-stability": "dev"
+}
