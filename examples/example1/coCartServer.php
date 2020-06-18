@@ -5,14 +5,14 @@ define('DS', DIRECTORY_SEPARATOR);
 require_once __DIR__ . DS . '../../vendor/autoload.php';
 
 use CoWorkerman\CoWorker;
-use CoWorkerman\Connection\CoTcpConnection;
-use CoWorkerman\Connection\AsyncTcpClient;
-use CoWorkerman\Coroutine\Promise;
 use CoWorkerman\Lib\CoTimer;
+use CoWorkerman\Coroutine\Promise;
+use CoWorkerman\Connection\CoTcpClient;
+use CoWorkerman\Connection\CoTcpConnection;
 
+$worker = new CoWorker('tcp://0.0.0.0:8080');
 CoWorker::$globalEvent = null;
-
-$worker = new CoWorker('tcp://0.0.0.0:8686');
+$worker->count = 1;
 
 /**
  * 发起rpc检查统一接口
@@ -27,9 +27,9 @@ $worker = new CoWorker('tcp://0.0.0.0:8686');
 function checkClientAsync($connection, $host, $port, $method, $data, $noBlocking = true)
 {
     CoWorker::safeEcho('try to connect to ' . "tcp://$host:$port" . PHP_EOL);
-    $con = new AsyncTcpClient("tcp://$host:$port");
+    $con = new CoTcpClient("tcp://$host:$port");
     $ifCon = $con->connectAsync($connection);
-    $ifCon = yield from Promise::wait($ifCon, __FUNCTION__);
+    $ifCon = (yield from Promise::wait($ifCon, __FUNCTION__));
     if (!$ifCon) {
         return null;
     }
@@ -52,7 +52,7 @@ function checkInventoryAsync($connection, $productId, $noBlocking = true)
 
     $data = array('productId' => $productId);
 
-    return yield from checkClientAsync($connection, $host, $port, 'inventory', $data,  $noBlocking);
+    return (yield from checkClientAsync($connection, $host, $port, 'inventory', $data,  $noBlocking));
 }
 
 function checkProductAsync($connection, $productId, $noBlocking = true)
@@ -63,7 +63,7 @@ function checkProductAsync($connection, $productId, $noBlocking = true)
 
     $data = array('productId' => $productId);
 
-    return yield from checkClientAsync($connection, $host, $port, 'product', $data,  $noBlocking);
+    return (yield from checkClientAsync($connection, $host, $port, 'product', $data,  $noBlocking));
 }
 
 function checkPromoAsync($connection, $productId, $noBlocking = true)
@@ -74,7 +74,7 @@ function checkPromoAsync($connection, $productId, $noBlocking = true)
 
     $data = array('productId' => $productId);
 
-    return yield from checkClientAsync($connection, $host, $port, 'promo', $data,  $noBlocking);
+    return (yield from checkClientAsync($connection, $host, $port, 'promo', $data,  $noBlocking));
 }
 
 $worker->onConnect = function (CoTcpConnection  $connection) {
@@ -84,20 +84,28 @@ $worker->onConnect = function (CoTcpConnection  $connection) {
     $re2 = checkProductAsync($connection, rand(10, 20), true);
     $re3 = checkPromoAsync($connection, rand(10, 20), true);
 
-    yield from CoTimer::sleep(100);
+    yield from CoTimer::sleepAsync(100);
 
-    // 顺序异步执行
+    // 顺序异步执行 ------------------------------------------------------------------+
     $re3 = yield from Promise::wait($re3);
-    $re = yield from Promise::wait($re, 'onConnect');
-    $re2 = yield from Promise::wait($re2, 'onConnect');
+//    $re = yield from Promise::wait($re, 'onConnect');
+//    $re2 = yield from Promise::wait($re2, 'onConnect');
+    // or 同时异步执行 ---------------------------------------------------------------+
+    list($re, $re2) = yield from Promise::all(array($re, $re2), 'onConnect');
+    // 选择结束 ----------------------------------------------------------------------+
 
-    // or 同时异步执行
-//    list($re, $re2) = yield from Promise::all(array($re, $re2), 'onConnect');
-
-    var_dump($re);
-    var_dump($re2);
+    if (isset($re['re']) && isset($re2['re'])) {
+        $check = $re['re'] && $re2['re'];
+    }
+    $connection->sendAsync($check);
 };
 
+/**
+ * 被动接收到的消息
+ *
+ * @param CoTcpConnection   $connection
+ * @param string            $data
+ */
 $worker->onMessage = function(CoTcpConnection $connection, $data)
 {
     $re = $connection->send("hello");

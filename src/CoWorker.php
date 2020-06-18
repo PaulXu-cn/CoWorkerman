@@ -8,82 +8,72 @@ use Workerman\Connection\UdpConnection;
 use Workerman\Worker;
 
 use CoWorkerman\Connection\CoTcpConnection;
+use CoWorkerman\Coroutine\CoroutineMan;
 
-require_once __DIR__ . '/Worker.php';
-
+/**
+ * Class CoWorker
+ *
+ * @package CoWorkerman
+ */
 class CoWorker extends Worker
 {
+    use CoroutineMan;
+
     /**
-     * the child worker's coroutines
+     * Get global event-loop instance.
      *
-     * @var \Generator[]    $_coroutines
+     * @return \Workerman\Events\EventInterface|\React\EventLoop\LoopInterface
      */
-    protected static $_coroutines = array();
+    public static function getEventLoop()
+    {
+        return static::$globalEvent;
+    }
 
-    protected static $_coIds = array();
-
-    protected static $_currentCoId = 0;
-
-    protected static $_recycleCoIds = array();
 
     /**
-     * @return int|mixed
+     * Get event loop name.
+     *
+     * @return string
      */
-    public static function genCoId()
+    protected static function getEventLoopName()
     {
-        $newId = -1;
-        if (empty(self::$_recycleCoIds)) {
-            self::$_coIds[] = null;
-            $keys = array_keys(self::$_coIds);
-            $newId = array_pop($keys);
-            self::$_coIds[$newId] = $newId;
+        if (static::$eventLoopClass) {
+            return static::$eventLoopClass;
+        }
+
+        if (!\class_exists('\Swoole\Event', false)) {
+            unset(static::$_availableEventLoops['swoole']);
+        }
+
+        $loop_name = '';
+        foreach (static::$_availableEventLoops as $name=>$class) {
+            if (\extension_loaded($name)) {
+                $loop_name = $name;
+                break;
+            }
+        }
+
+        if ($loop_name) {
+            if (\interface_exists('\React\EventLoop\LoopInterface')) {
+                switch ($loop_name) {
+                    case 'libevent':
+                        static::$eventLoopClass = '\Workerman\Events\React\ExtLibEventLoop';
+                        break;
+                    case 'event':
+//                        static::$eventLoopClass = '\Workerman\Events\React\ExtEventLoop';
+                        static::$eventLoopClass = '\CoWorkerman\Events\CoExtEvent';
+                        break;
+                    default :
+                        static::$eventLoopClass = '\Workerman\Events\React\StreamSelectLoop';
+                        break;
+                }
+            } else {
+                static::$eventLoopClass = static::$_availableEventLoops[$loop_name];
+            }
         } else {
-            $newId = array_shift(self::$_recycleCoIds);
+            static::$eventLoopClass = \interface_exists('\React\EventLoop\LoopInterface') ? '\Workerman\Events\React\StreamSelectLoop' : '\Workerman\Events\Select';
         }
-        self::$_currentCoId = $newId;
-        return $newId;
-    }
-
-    public static function getCurrentCoId()
-    {
-        return self::$_currentCoId;
-    }
-
-    /**
-     * @param integer       $coId
-     * @param resource|null $socket
-     * @param mixed         $data
-     */
-    public static function coSend($coId, $socket, $data)
-    {
-        $gen = self::$_coroutines[$coId];
-        $gen->send(array('socket' => $socket, 'data' => $data));
-    }
-
-    /**
-     * @param \Generator    $generator
-     * @param integer       $coId
-     */
-    public static function addCoroutine($generator, $coId = null)
-    {
-        if (null === $coId) {
-            $coId = self::genCoId();
-        }
-        self::$_coroutines[$coId] = $generator;
-    }
-
-    /**
-     * 移除协程
-     * @param $coId
-     */
-    public static function removeCoroutine($coId)
-    {
-        if (isset(self::$_coroutines[$coId])) {
-            // 移除生成器
-            unset(self::$_coroutines[$coId]);
-            // 回收生成器ID
-            self::$_recycleCoIds[$coId] = $coId;
-        }
+        return static::$eventLoopClass;
     }
 
     /**

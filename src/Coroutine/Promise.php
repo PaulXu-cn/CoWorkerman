@@ -20,22 +20,13 @@ class Promise
         $result = array();
         $genInfos = array();
         /**
-         * @var TcpSocketPromise    $gen
+         * @var \Generator  $gen
          */
         $gen = null;
         foreach ($params as $key => $gen) {
             if ($gen instanceof \Generator) {
                 $re = $genRe = $gen->current();
                 $genInfos[$key] = array('gen' => $gen, 'data' => $re);
-            } else {
-                $call = $gen->getFunction();
-                if ($call instanceof \Generator) {
-                    // real call
-                    $re = $call->current();
-                    $genInfos[$key] = array('gen' => $gen, 'data' => $re);
-                } else {
-                    throw new \Exception('wait 方法只接受一个生成器');
-                }
             }
         }
 
@@ -127,7 +118,7 @@ class Promise
          */
         $call = null;
         /**
-         * @var TcpSocketPromise    $gen
+         * @var \Generator  $gen
          */
         if ($gen instanceof \Generator) {
             do {
@@ -154,17 +145,6 @@ class Promise
                 $result = yield from self::wait($deepGen, 'Promise:await');
             }
             return $result;
-        } elseif ($gen instanceof Promise) {
-            $call = $gen->getFunction();
-            if ($call instanceof \Generator) {
-                // real call
-                $socket = $call->current();
-                $data = yield $socket;
-                $call->send($data);
-                return $data['data'];
-            } else {
-                throw new \Exception('wait 方法只接受一个生成器');
-            }
         }
         return $result;
     }

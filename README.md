@@ -1,3 +1,3 @@
-English | [中文](./README.cn.md)
+[English](./README.en.md) | 中文
 # CoWorkerman
-Coroutine Workerman.
+协程版 Workerman.

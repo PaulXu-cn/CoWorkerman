@@ -2,91 +2,31 @@
 
 namespace CoWorkerman\Connection;
 
-use Workerman\Events\EventInterface;
 use Workerman\Worker;
+use Workerman\Events\EventInterface;
 use Workerman\Connection\AsyncTcpConnection;
 
-use CoWorkerman\Coroutine\Promise;
 use CoWorkerman\CoWorker;
+use CoWorkerman\Coroutine\Promise;
+use CoWorkerman\Coroutine\CoroutineMan;
 
 /**
- * Class AsyncTcpClient
+ * Class CoTcpClient
  *
  * @package Workerman\Connection
  */
-class AsyncTcpClient extends AsyncTcpConnection
+class CoTcpClient extends AsyncTcpConnection
 {
+    use CoroutineMan;
 
     /**
-     * socket链接对应的 生成器ID
-     *
-     * @var integer[]   $_connectionSocketToCoId
-     */
-    protected static $_connectionSocketToCoId = array();
-
-    /**
-     * 生成器数组
-     *
-     * @var \Generator[]    $_coroutines
-     */
-    protected static $_coroutines = array();
-
-    /**
-     * @var integer[]   $_socketToCoId
-     */
-    protected static $_socketToCoId = array();
-
-    /**
-     * 保存当前socket 对应的 生成器
-     *
-     * @param resource  $socket
-     */
-    public static function setCoIdBySocket($socket)
-    {
-        $resId = (string) $socket;
-        if (isset(self::$_socketToCoId[$resId]))
-            return;
-        $coId = CoWorker::getCurrentCoId();
-        self::$_socketToCoId[$resId] = $coId;
-    }
-
-    /**
-     * 通过 socket 移除相关生成器
-     *
-     * @param   resource    $socket
-     */
-    protected static function removeGeneratorBySocket($socket)
-    {
-        $coId = null;
-        if (isset(self::$_connectionSocketToCoId[(string) $socket])) {
-            $coId = self::$_connectionSocketToCoId[(string) $socket];
-        }
-        if (isset(self::$_coroutines[$coId])) {
-            unset(self::$_coroutines[$coId]);
-            CoWorker::removeCoroutine($coId);
-        }
-    }
-
-    /**
-     * 通过 socket 获取对应的 生成器
-     *
-     * @param resource  $socket
-     * @return mixed
-     */
-    public static function getParentCoIdBySocket($socket)
-    {
-        $resId = (string) $socket;
-        return self::$_socketToCoId[$resId];
-    }
-
-    /**
-     * @param AsyncTcpClient    $client     socket 链接
-     * @param boolean           $success    链接成功与否
+     * @param CoTcpClient $client  socket 链接
+     * @param boolean     $success 链接成功与否
      */
     protected function _onConnect($client, $success)
     {
         $socket = $client->getSocket();
-        $coId = self::getParentCoIdBySocket($socket);
+        $coId = self::getCoIdBySocket($socket);
         CoTcpConnection::coSend($coId, $socket, $success);
         if ($this->onConnect) {
             try {
@@ -108,13 +48,13 @@ class AsyncTcpClient extends AsyncTcpConnection
     }
 
     /**
-     * @param AsyncTcpClient    $connection
+     * @param CoTcpClient $connection
      * @param $data
      */
     protected function _onMessage($connection, $data)
     {
         $socket = $connection->getSocket();
-        $coId = self::getParentCoIdBySocket($socket);
+        $coId = self::getCoIdBySocket($socket);
         CoTcpConnection::coSend($coId, $socket, $data);
         if (!$this->onMessage) {
             return;
@@ -138,11 +78,12 @@ class AsyncTcpClient extends AsyncTcpConnection
     }
 
     /**
-     * @param AsyncTcpClient    $connection
+     * @param CoTcpClient $connection
      */
     protected function _onClose($connection)
     {
         self::removeGeneratorBySocket($connection->getSocket());
+        CoWorker::removeCoroutine(self::getCoIdBySocket($connection->getSocket()));
         if ($this->onClose) {
             try {
                 $gen = \call_user_func($this->onClose, $connection);
@@ -280,7 +221,7 @@ class AsyncTcpClient extends AsyncTcpConnection
         $this->_sendBuffer .= $send_buffer;
         // Check if the send buffer is full.
         $this->checkBufferWillFull();
-        $re = yield $this->_socket;
+        $re = (yield $this->_socket);
         return $re['data'];
     }
 
@@ -569,7 +510,6 @@ class AsyncTcpClient extends AsyncTcpConnection
      */
     public function connectAsync($parent)
     {
-//        return new TcpSocketPromise($this->_socket, $this, $this->_connectAsync($parent), CoWorker::getCurrentCoId());
         return yield from $this->_connectAsync($parent);
     }
 
@@ -682,7 +622,7 @@ class AsyncTcpClient extends AsyncTcpConnection
                 */
                 $msg = $parser::decode($one_request_buffer, $this);
                 $this->_onMessage($this, $msg);
-                $coId = self::getParentCoIdBySocket($socket);
+                $coId = self::getCoIdBySocket($socket);
                 CoTcpConnection::coSend($coId, $socket, $msg);
             }
             return;
@@ -787,6 +727,9 @@ class AsyncTcpClient extends AsyncTcpConnection
         parent::__destruct();
     }
 
+    /**
+     * @throws \Exception
+     */
     public function __clone()
     {
         // TODO: Implement __clone() method.

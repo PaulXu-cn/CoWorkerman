@@ -16,13 +16,8 @@
     },
     "require": {
         "php": ">=5.5",
-        "workerman/workerman": "4.0.5"
-    },
-    "repositories": {
-        "packagist": {
-            "type": "composer",
-            "url": "https://mirrors.aliyun.com/composer/"
-        }
+        "workerman/workerman": "4.0.5",
+        "react/mysql": "0.5.*"
     },
     "minimum-stability": "dev"
 }

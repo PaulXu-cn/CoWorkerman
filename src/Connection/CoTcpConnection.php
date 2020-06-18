@@ -2,27 +2,29 @@
 
 namespace CoWorkerman\Connection;
 
-use Workerman\Events\EventInterface;
 use Workerman\Worker;
+use Workerman\Events\EventInterface;
 use Workerman\Connection\TcpConnection;
 
 use CoWorkerman\CoWorker;
+use CoWorkerman\Coroutine\CoroutineMan;
+use CoWorkerman\Exception\ConnectionCloseException;
+use CoWorkerman\Exception\ConnectionErrorException;
 
 
 class CoTcpConnection extends TcpConnection
 {
-    protected static $_coroutines = array();
-
-    protected static $_connectionSocketToCoId = array();
-
-    protected $_coroutineId;
-
-    protected $_socketIDtoCoId = array();
+    use CoroutineMan;
 
     /**
      * @var null|callable $onConnect
      */
     public $onConnect = null;
+
+    /**
+     * @var null|callable $onResponse
+     */
+    protected $onResponse = array();
 
 //    protected static $_connections = array();
 
@@ -37,17 +39,6 @@ class CoTcpConnection extends TcpConnection
     {
         $this->_coroutineId = $coId;
         parent::__construct($socket, $remote_address);
-    }
-
-    /**
-     * @param $coId
-     * @param $socket
-     * @param $data
-     */
-    public static function coSend($coId, $socket, $data)
-    {
-        $gen = self::$_coroutines[$coId];
-        $gen->send(array('socket' => $socket, 'data' => $data));
     }
 
     /**
@@ -80,45 +71,53 @@ class CoTcpConnection extends TcpConnection
     /**
      * 发来的消息，
      *
-     * @param $connection
-     * @param $data
+     * @param CoTcpConnection   $connection
+     * @param string            $data
      */
-    protected function _onMessage($connection, $data)
+    protected function _onMessage(CoTcpConnection   $connection, $data)
     {
-        if (!$this->onMessage) {
-            return;
-        }
-        try {
-            // Decode request buffer before Emitting onMessage callback.
-            $gen = \call_user_func($this->onMessage, $connection, $data);
-            if ($gen instanceof \Generator) {
-                $coId = Coworker::genCoId();
-                self::$_coroutines[$coId] = $gen;
-                // run coroutine
-                $gen->current();
+//        $coId = CoWorker::getCoIdBySocket($connection->getSocket());
+        $coId = self::getCoIdBySocket($connection->getSocket());
+        CoWorker::safeEcho('_onMessage CoId: ' . $coId . PHP_EOL);
+//        CoWorker::refreshCoIdBySocket($connection->getSocket());
+        if ($this->onResponse[$coId]) {
+            try {
+                // Decode request buffer before Emitting onMessage callback.
+                $gen = \call_user_func($this->onResponse[$coId], $connection, $data);
+                if ($gen instanceof \Generator) {
+                    $coId = Coworker::genCoId();
+                    self::$_coroutines[$coId] = $gen;
+                    CoWorker::addCoroutine($gen, $coId);
+                    // run coroutine
+                    $gen->current();
+                }
+            } catch (\Exception $e) {
+                Worker::log($e);
+                exit(250);
+            } catch (\Error $e) {
+                Worker::log($e);
+                exit(250);
             }
-        } catch (\Exception $e) {
-            Worker::log($e);
-            exit(250);
-        } catch (\Error $e) {
-            Worker::log($e);
-            exit(250);
+        } elseif ($this->onMessage) {
+            try {
+                // Decode request buffer before Emitting onMessage callback.
+                $gen = \call_user_func($this->onMessage, $connection, $data);
+                if ($gen instanceof \Generator) {
+                    $coId = Coworker::genCoId();
+                    self::$_coroutines[$coId] = $gen;
+                    CoWorker::addCoroutine($gen, $coId);
+                    // run coroutine
+                    $gen->current();
+                }
+            } catch (\Exception $e) {
+                Worker::log($e);
+                exit(250);
+            } catch (\Error $e) {
+                Worker::log($e);
+                exit(250);
+            }
         }
-    }
-
-    /**
-     * @param   resource    $socket
-     */
-    protected static function removeGeneratorBySocket($socket)
-    {
-        $coId = null;
-        if (isset(self::$_connectionSocketToCoId[(string) $socket])) {
-            $coId = self::$_connectionSocketToCoId[(string) $socket];
-        }
-        if (isset(self::$_coroutines[$coId])) {
-            unset(self::$_coroutines[$coId]);
-            CoWorker::removeCoroutine($coId);
-        }
+        return;
     }
 
     /**
@@ -128,6 +127,8 @@ class CoTcpConnection extends TcpConnection
      */
     protected function _onClose($connection)
     {
+        $coId = self::getCoIdBySocket($connection->getSocket());
+//        self::coThrow($coId, null, new ConnectionCloseException('the connection closed!'));
         self::removeGeneratorBySocket($connection->getSocket());
         if ($this->onClose) {
             try {
@@ -151,12 +152,14 @@ class CoTcpConnection extends TcpConnection
     /**
      * 报错了
      *
-     * @param $connection
-     * @param $code
-     * @param $msg
+     * @param CoTcpConnection   $connection
+     * @param integer           $code
+     * @param string            $msg
      */
     protected function _onError($connection, $code, $msg)
     {
+        $coId = self::getCoIdBySocket($connection->getSocket());
+        self::coThrow($coId, null, new ConnectionErrorException($msg));
         if ($this->onError) {
             try {
                 $gen = \call_user_func($this->onError, $connection, $code, $msg);
@@ -174,6 +177,26 @@ class CoTcpConnection extends TcpConnection
                 exit(250);
             }
         }
+    }
+
+    /**
+     * @param integer           $len
+     * @return \Generator|mixed
+     */
+    public function readAsync($len)
+    {
+        $coId = CoWorker::getCurrentCoId();
+        CoWorker::safeEcho('send async  with CoId: ' . $coId . PHP_EOL);
+        $this->onResponse[$coId] = function (CoTcpConnection   $connection, $data) use ($coId, $len) {
+            CoWorker::safeEcho('send callback send to CoId: ' . $coId . PHP_EOL);
+            CoWorker::$_currentCoId = $coId;
+            CoTcpConnection::coSend($coId, $connection->getSocket(), $data);
+        };
+
+        $data = yield;
+        CoWorker::safeEcho('coid: ' . $coId . ' get read data' . PHP_EOL);
+        $this->onResponse[$coId] = null;
+        return $data['data'];
     }
 
     /**
