@@ -1,6 +1,6 @@
 English | [中文](README.md)
 # CoWorkerman
-Coroutine Workerman.
+Coroutine Workerman. Synchronous coding, asynchronous execution
 
 > Implemented by `yield`,`yield from`.
 
@@ -34,8 +34,6 @@ use CoWorkerman\CoWorker;
 use CoWorkerman\Lib\CoTimer;
 use CoWorkerman\Connection\CoTcpConnection;
 
-CoWorker::$globalEvent = null;
-
 $worker = new CoWorker('tcp://0.0.0.0:8686');
 
 $worker->onConnect = function (CoTcpConnection  $connection) {
@@ -58,8 +56,8 @@ CoWorker::runAll();
 $ php ./simpleTimerServer.php start
 ## talnet it
 $ talnet 127.0.0.1:8686
-hello
 > hi
+hello
 ```
 
 ### Coroutine TCP server, client.
@@ -75,6 +73,27 @@ use CoWorkerman\CoWorker;
 use CoWorkerman\Coroutine\Promise;
 use CoWorkerman\Connection\CoTcpClient;
 use CoWorkerman\Connection\CoTcpConnection;
+
+$worker = new CoWorker('tcp://0.0.0.0:8686');
+
+$worker->onConnect = function (CoTcpConnection  $connection) {
+    echo "New Connection, {$connection->getLocalIp()} \n";
+
+    $re = checkInventoryAsync($connection, rand(10, 20), true);
+    $re2 = checkProductAsync($connection, rand(10, 20), true);
+
+    // 顺序异步执行 ------------------------------------------------------------------+
+//    $re = yield from Promise::wait($re, 'onConnect');
+//    $re2 = yield from Promise::wait($re2, 'onConnect');
+    // or 同时异步执行 ---------------------------------------------------------------+
+    list($re, $re2) = yield from Promise::all(array($re, $re2), 'onConnect');
+    // 选择结束 ----------------------------------------------------------------------+
+
+    if (isset($re['re']) && isset($re2['re'])) {
+        $check = $re['re'] && $re2['re'];
+    }
+    $connection->sendAsync($check);
+};
 
 /**
  * 发起rpc检查统一接口
@@ -119,28 +138,44 @@ function checkProductAsync($connection, $productId, $noBlocking = true)
     return yield from checkClientAsync($connection, $host, $port, 'product', $data,  $noBlocking);
 }
 
-CoWorker::$globalEvent = null;
-
-$worker = new CoWorker('tcp://0.0.0.0:8686');
-
-$worker->onConnect = function (CoTcpConnection  $connection) {
-    echo "New Connection, {$connection->getLocalIp()} \n";
-
-    $re = checkInventoryAsync($connection, rand(10, 20), true);
-    $re2 = checkProductAsync($connection, rand(10, 20), true);
-
-    // 顺序异步执行
-//    $re = yield from Promise::wait($re, 'onConnect');
-//    $re2 = yield from Promise::wait($re2, 'onConnect');
-
-    // or 同时异步执行
-    list($re, $re2) = yield from Promise::all(array($re, $re2), 'onConnect');
-
-    var_dump($re);
-    var_dump($re2);
-};
-
 // 运行worker
 CoWorker::runAll();
 ```
 
+### Coroutine MySQL Client
+
+```php
+<?php
+
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+use CoWorkerman\CoWorker;
+use CoWorkerman\MySQL\Connection;
+
+$worker = new CoWorker('tcp://0.0.0.0:6161');
+
+// 收到客户端请求时
+$worker->onMessage = function($connection, $data) {
+    global $mysql;
+
+    $mysql = new Connection(array(
+//        'host'   => '192.63.0.1', // 不要写localhost
+        'host'   => '192.63.0.14', // 不要写localhost
+        'dbname' => 'mysql',
+        'user'   => 'root',
+        'password' => '123456',
+        'port'  => '3306'
+    ));
+
+    $connected = yield from $mysql->connection();
+    $re = yield from $mysql->query('show databases');
+
+    CoWorker::safeEcho(json_encode($re) . PHP_EOL);
+};
+
+CoWorker::runAll();
+```
+
+## Tips
+
+The project is still in testing, please do not use it in production environment.

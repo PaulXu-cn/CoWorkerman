@@ -4,9 +4,7 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 
 use CoWorkerman\CoWorker;
 use CoWorkerman\MySQL\Connection;
-use CoWorkerman\Events\CoExtEvent;
 
-CoWorker::$globalEvent = $loop;
 $worker = new CoWorker('tcp://0.0.0.0:6161');
 
 // 收到客户端请求时

@@ -10,7 +10,6 @@ use CoWorkerman\Connection\CoTcpConnection;
 use \CoWorkerman\Exception\ConnectionCloseException;
 
 $worker = new CoWorker('tcp://0.0.0.0:8080');
-CoWorker::$globalEvent = null;
 $worker->count = 1;
 
 /**
@@ -25,7 +24,6 @@ $worker->onConnect = function (CoTcpConnection  $connection) {
         echo PHP_EOL . "New Connection, {$conName} \n";
 
         $re = yield from $connection->readAsync(1024);
-        CoWorker::safeEcho('get request msg :' . (string) $re . PHP_EOL);
 
         yield from CoTimer::sleepAsync(1000 * 2);
 
@@ -35,17 +33,6 @@ $worker->onConnect = function (CoTcpConnection  $connection) {
     } catch (ConnectionCloseException $e) {
         CoWorker::safeEcho('Connection closed, ' . $e->getMessage() . PHP_EOL);
     }
-};
-
-/**
- * 被动接收到的消息
- *
- * @param CoTcpConnection   $connection
- * @param string            $data
- */
-$worker->onMessage = function(CoTcpConnection $connection, $data)
-{
-    $re = $connection->send("hello");
 };
 
 // 运行worker

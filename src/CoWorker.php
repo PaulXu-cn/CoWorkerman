@@ -64,7 +64,8 @@ class CoWorker extends Worker
                         static::$eventLoopClass = '\CoWorkerman\Events\CoExtEvent';
                         break;
                     default :
-                        static::$eventLoopClass = '\Workerman\Events\React\StreamSelectLoop';
+//                        static::$eventLoopClass = '\Workerman\Events\React\StreamSelectLoop';
+                        static::$eventLoopClass = '\CoWorkerman\Events\CoStreamSelect';
                         break;
                 }
             } else {

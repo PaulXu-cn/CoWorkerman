@@ -2,10 +2,10 @@
 
 namespace CoWorkerman\MySQL;
 
-use React\EventLoop\LoopInterface;
 use React\MySQL\Factory;
-use React\EventLoop\Factory as EventFactory;
 use React\MySQL\QueryResult;
+use React\EventLoop\LoopInterface;
+use React\EventLoop\Factory as EventFactory;
 
 use CoWorkerman\CoWorker;
 
