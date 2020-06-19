@@ -17,7 +17,7 @@
 ## 安装
 
 ```shell script
-composer require paulxu-cn/co-workerman@dev-master
+composer require paulxu-cn/co-workerman:0.0.*
 ```
 
 ## 基本使用
@@ -65,7 +65,7 @@ hello
 
 ```php
 <?php
-// file: ~/examples/example1/coCartServer.php
+// file: ~/examples/example5/coCartServer.php
 define('DS', DIRECTORY_SEPARATOR);
 
 require_once __DIR__ . DS . 'vendor' . DS . 'autoload.php';
@@ -145,28 +145,29 @@ CoWorker::runAll();
 * 启动依赖的三个服务
 ```shell script
 ## 启动一个处理耗时2s的库存服务
-$ php ./examples/example1/otherServer.php 8081 inventory 2
+$ php ./examples/example5/otherServerFork.php 8081 inventory 1
 
 ## 启动一个处理耗时4s的产品服务
-$ php ./examples/example1/otherServer.php 8082 product 4
+$ php ./examples/example5/otherServerFork.php 8082 product 2
 
 ## 监听8083端口，处理一个请求 耗时6s的 promo 服务
-$ php ./examples/example1/otherServer.php 8083 promo 6
+$ php ./examples/example5/otherServerFork.php 8083 promo 3
 ```
 * 运行服务端，与客户端
-```sehll
+
+```shell script
 ## 启动一个非阻塞购物车服务
 $ php ./coCartServer.php 
 
 ## 客户端请求
-$ php ./examples/example1/userClient.php
-``` 
+$ php ./examples/example5/userClientFork.php
+```
 
 ### 服务中使用协程MySQL客户端
 
 ```php
 <?php
-// file: ~/example/example2/coWorkerMySQLtest1.php
+// file: ~/example/example3/coWorkerMySQLtest1.php
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 use CoWorkerman\CoWorker;
@@ -198,7 +199,7 @@ CoWorker::runAll();
 * 启动服务
 ```shell script
 ## start the MySQL client server
-$ php ./examples/example2/coWorkerMySQLtest1.php start
+$ php ./examples/example3/coWorkerMySQLtest1.php start
 ```
 * 访问
 ```shell script
@@ -208,3 +209,5 @@ telnet 127.0.0.1 6161
 ## 说明
 
 目前还在测试开发阶段，不要用在生产环境中.
+
+它克隆自[workerman](https://github.com/walkor/Workerman)

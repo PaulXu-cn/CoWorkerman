@@ -27,13 +27,16 @@ class CoTcpClient extends AsyncTcpConnection
     {
         $socket = $client->getSocket();
         $coId = self::getCoIdBySocket($socket);
+//        $coId = CoWorker::getCoIdBySocket($socket);
+        CoWorker::$_currentCoId = $coId;
         CoTcpConnection::coSend($coId, $socket, $success);
         if ($this->onConnect) {
             try {
                 $gen = \call_user_func($this->onConnect, $client);
                 if ($gen instanceof \Generator) {
                     $coId = Coworker::genCoId();
-                    self::$_coroutines[$coId] = $gen;
+                    self::addCoroutine($gen, $coId);
+                    CoWorker::addCoroutine($gen, $coId);
                     // run coroutine
                     $gen->current();
                 }
@@ -55,6 +58,8 @@ class CoTcpClient extends AsyncTcpConnection
     {
         $socket = $connection->getSocket();
         $coId = self::getCoIdBySocket($socket);
+//        $coId = CoWorker::getCoIdBySocket($socket);
+        CoWorker::$_currentCoId = $coId;
         CoTcpConnection::coSend($coId, $socket, $data);
         if (!$this->onMessage) {
             return;
@@ -64,7 +69,8 @@ class CoTcpClient extends AsyncTcpConnection
             $gen = \call_user_func($this->onMessage, $connection, $data);
             if ($gen instanceof \Generator) {
                 $coId = Coworker::genCoId();
-                self::$_coroutines[$coId] = $gen;
+                self::addCoroutine($gen, $coId);
+                CoWorker::addCoroutine($gen, $coId);
                 // run coroutine
                 $gen->current();
             }
@@ -82,14 +88,15 @@ class CoTcpClient extends AsyncTcpConnection
      */
     protected function _onClose($connection)
     {
-        self::removeGeneratorBySocket($connection->getSocket());
-        CoWorker::removeCoroutine(self::getCoIdBySocket($connection->getSocket()));
+//        self::removeGeneratorBySocket($connection->getSocket());
+//        CoWorker::removeCoroutine(self::getCoIdBySocket($connection->getSocket()));
         if ($this->onClose) {
             try {
                 $gen = \call_user_func($this->onClose, $connection);
                 if ($gen instanceof \Generator) {
                     $coId = Coworker::genCoId();
-                    self::$_coroutines[$coId] = $gen;
+                    self::addCoroutine($gen, $coId);
+                    CoWorker::addCoroutine($gen, $coId);
                     // run coroutine
                     $gen->current();
                 }
@@ -110,7 +117,8 @@ class CoTcpClient extends AsyncTcpConnection
                 $gen = \call_user_func($this->onError, $connection, $code, $msg);
                 if ($gen instanceof \Generator) {
                     $coId = Coworker::genCoId();
-                    self::$_coroutines[$coId] = $gen;
+                    self::addCoroutine($gen, $coId);
+                    CoWorker::addCoroutine($gen, $coId);
                     // run coroutine
                     $gen->current();
                 }
@@ -177,7 +185,9 @@ class CoTcpClient extends AsyncTcpConnection
             // send successful.
             if ($len === \strlen($send_buffer)) {
                 $this->bytesWritten += $len;
-                self::setCoIdBySocket($this->_socket);
+                $coId = CoWorker::getCurrentCoId();
+                self::setCoIdBySocket($this->_socket, $coId);
+                CoWorker::setCoIdBySocket($this->_socket, $coId);
                 $re = yield $this->_socket;
                 return $re['data'];
             }
@@ -446,7 +456,9 @@ class CoTcpClient extends AsyncTcpConnection
             }
             return;
         }
-        self::setCoIdBySocket($this->_socket);
+        $coId = CoWorker::getCurrentCoId();
+        self::setCoIdBySocket($this->_socket, $coId);
+        CoWorker::setCoIdBySocket($this->_socket, $coId);
         // Add socket to global event loop waiting connection is successfully established or faild.
         Worker::$globalEvent->add($this->_socket, EventInterface::EV_WRITE, array($this, 'checkConnection'));
         // For windows.
@@ -492,7 +504,9 @@ class CoTcpClient extends AsyncTcpConnection
             }
             return;
         }
-        self::setCoIdBySocket($this->_socket);
+        $coId = CoWorker::getCurrentCoId();
+        self::setCoIdBySocket($this->_socket, $coId);
+        CoWorker::setCoIdBySocket($this->_socket, $coId);
         // Add socket to global event loop waiting connection is successfully established or faild.
         Worker::$globalEvent->add($this->_socket, EventInterface::EV_WRITE, array($this, 'checkConnectionAsync'), array($parent));
         // For windows.
@@ -623,7 +637,8 @@ class CoTcpClient extends AsyncTcpConnection
                 $msg = $parser::decode($one_request_buffer, $this);
                 $this->_onMessage($this, $msg);
                 $coId = self::getCoIdBySocket($socket);
-                CoTcpConnection::coSend($coId, $socket, $msg);
+//                $coId = CoWorker::getCoIdBySocket($socket);
+//                CoTcpConnection::coSend($coId, $socket, $msg);
             }
             return;
         }

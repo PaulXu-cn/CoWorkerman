@@ -16,7 +16,7 @@ Event extension recommended for better performance, like: Event, ev, libevent
 ## Install
 
 ```shell script
-composer require paulxu-cn/co-workerman@dev-master
+composer require paulxu-cn/co-workerman:0.0.*
 ```
 
 ## Basic Usage
@@ -179,3 +179,5 @@ CoWorker::runAll();
 ## Tips
 
 The project is still in testing, please do not use it in production environment.
+
+It is cloned from [workerman](https://github.com/walkor/Workerman)

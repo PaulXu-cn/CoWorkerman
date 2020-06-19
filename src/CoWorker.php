@@ -112,6 +112,7 @@ class CoWorker extends Worker
         $connection->onBufferFull           = $this->onBufferFull;
 
         // Try to emit onConnect callback.
+
         \call_user_func(array($connection, 'newConnect'), $connection);
     }
 

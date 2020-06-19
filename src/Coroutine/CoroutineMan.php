@@ -137,6 +137,11 @@ trait CoroutineMan
         }
     }
 
+    public static function genCoIdBySocket($socket)
+    {
+
+    }
+
     /**
      * @param \Generator $generator
      * @param integer    $coId
@@ -176,13 +181,15 @@ trait CoroutineMan
      *
      * @param resource $socket
      */
-    public static function setCoIdBySocket($socket)
+    public static function setCoIdBySocket($socket, $coId = null)
     {
         $resId = (string)$socket;
-        if (isset(self::$_socketToCoId[$resId]))
+        if (isset(self::$_connectionSocketToCoId[$resId]))
             return;
-        $coId = CoWorker::getCurrentCoId();
-        self::$_socketToCoId[$resId] = $coId;
+        if (null === $coId) {
+            $coId = self::getCurrentCoId();
+        }
+        self::$_connectionSocketToCoId[$resId] = $coId;
     }
 
     /**
