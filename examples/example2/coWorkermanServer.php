@@ -2,7 +2,8 @@
 
 define('DS', DIRECTORY_SEPARATOR);
 
-require_once __DIR__ . DS . '../../vendor/autoload.php';
+include __DIR__ . DS . '../../../../autoload.php';
+include __DIR__ . DS . '../../vendor/autoload.php';
 
 use CoWorkerman\CoWorker;
 use CoWorkerman\Lib\CoTimer;
@@ -24,6 +25,7 @@ $worker->onConnect = function (CoTcpConnection  $connection) {
         echo PHP_EOL . "New Connection, {$conName} \n";
 
         $re = yield from $connection->readAsync(1024);
+        CoWorker::safeEcho('get request msg :' . $re . PHP_EOL );
 
         yield from CoTimer::sleepAsync(1000 * 2);
 

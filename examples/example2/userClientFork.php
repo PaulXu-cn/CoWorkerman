@@ -6,9 +6,10 @@
 $host = "127.0.0.1";
 $port = 8080;
 
-foreach (range(1, 10) as $i) {
+function request()
+{
+    global $host, $port;
     $method = "cart";
-
     $socket = @stream_socket_client("tcp://{$host}:{$port}", $errno, $errMsg);
     if ($socket === false) {
         throw new \RuntimeException("unable to create socket: " . $errMsg);
@@ -31,7 +32,6 @@ foreach (range(1, 10) as $i) {
     $len = @fwrite($socket, $message . PHP_EOL);
     if ($len === 0) {
         fwrite(STDOUT, "socket closed\n");
-        break;
     }
 
     // 读取响应
@@ -40,12 +40,30 @@ foreach (range(1, 10) as $i) {
         fwrite(STDOUT, "receive server: $msg  client time : " . date('Y-m-d H:i:s') . ".\n");
     } elseif (feof($socket)) {
         fwrite(STDOUT, "socket closed time: " . date('Y-m-d H:i:s') . "\n");
-        break;
     }
-
-    sleep(2);
 
     // 一个请求完毕，关闭socket
     fwrite(STDOUT, "close connection...\n");
     fclose($socket);
 }
+
+function forkMe($ttl)
+{
+    if (0 > $ttl) {
+        return;
+    }
+    $pid = pcntl_fork();
+    if (0 > $pid) {
+        exit();
+    } elseif ($pid > 0) {
+        sleep(1);
+        forkMe(-- $ttl);
+    } elseif (0 == $pid) {
+        request();
+    }
+    if ($pid > 0) {
+        pcntl_wait($status);
+    }
+}
+
+forkMe(4);

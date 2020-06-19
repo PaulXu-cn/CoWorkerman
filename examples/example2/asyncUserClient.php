@@ -2,7 +2,8 @@
 
 define('DS', DIRECTORY_SEPARATOR);
 
-require_once __DIR__ . DS . '../../vendor/autoload.php';
+include __DIR__ . DS . '../../../../autoload.php';
+include __DIR__ . DS . '../../vendor/autoload.php';
 
 use \Workerman\Worker;
 use \Workerman\Connection\AsyncTcpConnection;
@@ -27,11 +28,14 @@ $task->onWorkerStart = function($task) {
             );
             $message = json_encode($data);
 
+
+            Worker::safeEcho( "send meg: [{$message}]" . PHP_EOL);
             $connection->send($message . PHP_EOL);
         };
 
         $connection_to_baidu->onMessage = function ($connection, $http_buffer) {
-            echo $http_buffer . PHP_EOL;
+            Worker::safeEcho( "get meg: [{$http_buffer}]" . PHP_EOL);
+//            echo $http_buffer . PHP_EOL;
 //            $connection->close();
         };
 
@@ -44,8 +48,10 @@ $task->onWorkerStart = function($task) {
         };
 
         $connection_to_baidu->connect();
-        sleep(1);
+//        sleep(1);
     }
+
+    Worker::stopAll();
 };
 
 // 运行worker
